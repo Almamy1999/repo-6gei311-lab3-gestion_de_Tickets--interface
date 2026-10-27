@@ -1,37 +1,68 @@
-from datetime import datetime
+from Ticket import ASSIGNE, VALIDATION
+from Attachment import AttachmentFactory
+
+
+
+UTILISATEUR = "Utilisateur"
+DEVELOPPEUR = "Développeur"
 
 
 class User:
-    def __init__(self, user_id, name, email, role):
+    def __init__(self, user_id, name, email, role=UTILISATEUR):
+      
+        if role != UTILISATEUR and role != DEVELOPPEUR:
+            raise ValueError("Rôle invalide : " + role)
+
         self.userID = user_id
-        self.name = name
+        self.name = name 
         self.email = email
         self.role = role
 
+    def isDeveloper(self):
+        return self.role == DEVELOPPEUR
+
     def createTicket(self, ticket):
+       
+        if ticket.creator is not None:
+            raise ValueError("Ce ticket a déjà un créateur.")
         ticket.creator = self
-        print(f"{self.name} a créé le ticket #{ticket.ticketID} : {ticket.title}")
+        return ticket
 
     def viewTicket(self, ticket):
-        print(f"--- Ticket #{ticket.ticketID} ---")
-        print(f"Titre : {ticket.title}")
-        print(f"Statut : {ticket.status}")
-        print(f"Priorité : {ticket.priority}")
-        print("Pièces jointes :")
-        if not ticket.attachments:
-            print("  (aucune)")
-        else:
-            for attachment in ticket.attachments:
-                print(f"  - {type(attachment).__name__} : {attachment.load()}")
+       
+        return ticket.toDict()
 
-    def updateTicket(self, ticket, title=None, priority=None):
-        if title is not None:
-            ticket.title = title
-        if priority is not None: 
-            ticket.priority = priority
-        ticket.updateDate = datetime.now()    
-        print(f"{self.name} a mis à jour le ticket #{ticket.ticketID}")
-         
+    def updateTicket(self, ticket, title=None, priority=None, description=None):
+       
+        if ticket.creator != self:
+            raise PermissionError(self.name + " n'est pas le créateur de ce ticket.")
+        ticket.updateInfo(title, priority, description)
+        return ticket
 
+    def addComment(self, ticket, texte):
+       
+        return ticket.addComment(texte, self)
 
+    def addAttachment(self, ticket, chemin):
+       
+        if ticket.creator != self and ticket.assignedTo != self:
+            raise PermissionError(self.name + " ne peut pas ajouter de pièce jointe à ce ticket.")
 
+        fabrique = AttachmentFactory()
+        piece = fabrique.create(chemin)
+        ticket.addAttachment(piece)
+        return piece
+
+    def submitForValidation(self, ticket):
+        
+        if not self.isDeveloper():
+            raise PermissionError("Seul un développeur peut envoyer un ticket en validation.")
+        if ticket.assignedTo != self:
+            raise PermissionError("Ce ticket n'est pas assigné à " + self.name + ".")
+        if ticket.status != ASSIGNE:
+            raise ValueError("Le ticket doit être ASSIGNÉ pour être envoyé en validation.")
+
+        ticket.updateStatus(VALIDATION)
+
+    def __str__(self):
+        return self.name + " (" + self.role + ")" 
